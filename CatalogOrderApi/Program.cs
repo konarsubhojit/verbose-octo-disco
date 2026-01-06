@@ -22,7 +22,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Configure Redis
+// Configure Redis for HybridCache
 var redisConnection = builder.Configuration.GetConnectionString("Redis") 
     ?? "localhost:6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
@@ -31,6 +31,20 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     configuration.AbortOnConnectFail = false;
     return ConnectionMultiplexer.Connect(configuration);
 });
+
+// Configure HybridCache with Redis backend
+#pragma warning disable EXTEXP0018 // Type is for evaluation purposes only
+builder.Services.AddHybridCache(options =>
+{
+    options.MaximumPayloadBytes = 1024 * 1024; // 1 MB
+    options.MaximumKeyLength = 512;
+    options.DefaultEntryOptions = new Microsoft.Extensions.Caching.Hybrid.HybridCacheEntryOptions
+    {
+        Expiration = TimeSpan.FromMinutes(30),
+        LocalCacheExpiration = TimeSpan.FromMinutes(5)
+    };
+});
+#pragma warning restore EXTEXP0018
 
 // Configure Blob Storage
 var blobConnectionString = builder.Configuration["BlobStorage:ConnectionString"] 
@@ -65,7 +79,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // Register services
-builder.Services.AddScoped<ICacheService, RedisCacheService>();
+builder.Services.AddScoped<ICacheService, HybridCacheService>();
 builder.Services.AddSingleton<IConcurrencyService>(new SemaphoreConcurrencyService(maxConcurrentRequests: 10));
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
 builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();

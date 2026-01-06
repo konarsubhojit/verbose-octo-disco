@@ -1,6 +1,6 @@
 # Catalog Order API
 
-A complete .NET 10 Web API for managing product catalog and orders with multi-currency support, Google OAuth authentication, image storage in Azure Blob Storage, and Redis caching.
+A complete .NET 10 Web API for managing product catalog and orders with multi-currency support, Google OAuth authentication, image storage in Azure Blob Storage, and hybrid caching with version-based invalidation.
 
 ## Features
 
@@ -10,7 +10,7 @@ A complete .NET 10 Web API for managing product catalog and orders with multi-cu
 - **Order Management**: Order tracking with auto-generated order numbers (ORD-YYYYMMDD-XXXX)
 - **Shipment Tracking**: AWB numbers, delivery partners, status updates
 - **Sales Reports**: Aggregated sales data by time period, customer, or source
-- **Caching**: Redis for response caching with pattern-based invalidation
+- **Hybrid Caching**: Version-based cache invalidation with Redis backend and L1/L2 caching
 - **Image Storage**: Azure Blob Storage for product variant images
 - **Soft Deletes**: Items can be deleted and restored without losing order history
 
@@ -18,7 +18,7 @@ A complete .NET 10 Web API for managing product catalog and orders with multi-cu
 
 - **.NET 10** - Latest .NET framework
 - **PostgreSQL** - Primary database with Entity Framework Core
-- **Redis** - Caching layer
+- **HybridCache** - Microsoft.Extensions.Caching.Hybrid with Redis backend
 - **Azure Blob Storage** - Image storage
 - **JWT** - Token-based authentication
 - **Swagger/OpenAPI** - API documentation
@@ -361,10 +361,21 @@ The sequence resets daily.
 
 ## Caching Strategy
 
-- **Items**: Cached for 10 minutes
-- **Orders**: Cached for 5 minutes
-- Cache keys include pagination and filter parameters
-- Pattern-based invalidation on updates
+The API uses **Microsoft.Extensions.Caching.Hybrid** with version-based cache invalidation:
+
+- **L1 Cache**: In-memory cache with 5-minute expiration (fast, local to each instance)
+- **L2 Cache**: Redis distributed cache with 30-minute expiration (shared across instances)
+- **Version-based Invalidation**: Each cache key has a version number that increments on updates
+  - When data changes, the version increments, making old cached data inaccessible
+  - No need to explicitly delete cache entries - they naturally expire
+  - Prevents race conditions and cache stampede issues
+- **Automatic Serialization**: Hybrid cache handles serialization/deserialization
+- **Pattern Matching**: RemoveByPatternAsync supports wildcard invalidation (e.g., "items*")
+
+**Cache Duration:**
+- Items: 10 minutes (L2), 5 minutes (L1)
+- Orders: 5 minutes (L2), 5 minutes (L1)
+- Cache keys include pagination and filter parameters for granular invalidation
 
 ## Security
 
