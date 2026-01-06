@@ -11,15 +11,7 @@ builder.Services.AddControllers();
 
 // Add Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    {
-        Title = "Catalog Order API",
-        Version = "v1",
-        Description = "Web API for managing items and orders with PostgreSQL, Redis caching, and blob storage for images"
-    });
-});
+builder.Services.AddSwaggerGen();
 
 // Configure PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
