@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
+using Azure.Storage.Blobs;
 using CatalogOrderApi.Data;
 using CatalogOrderApi.Services;
 
@@ -16,7 +17,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Catalog Order API",
         Version = "v1",
-        Description = "Web API for managing items and orders with PostgreSQL and Redis caching"
+        Description = "Web API for managing items and orders with PostgreSQL, Redis caching, and blob storage for images"
     });
 });
 
@@ -36,10 +37,16 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     return ConnectionMultiplexer.Connect(configuration);
 });
 
+// Configure Blob Storage
+var blobConnectionString = builder.Configuration["BlobStorage:ConnectionString"] 
+    ?? "UseDevelopmentStorage=true";
+builder.Services.AddSingleton(x => new BlobServiceClient(blobConnectionString));
+
 // Register services
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddSingleton<IConcurrencyService>(new SemaphoreConcurrencyService(maxConcurrentRequests: 10));
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
+builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
 
 // Add CORS
 builder.Services.AddCors(options =>

@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users { get; set; }
     public DbSet<Item> Items { get; set; }
+    public DbSet<DesignVariant> DesignVariants { get; set; }
     public DbSet<Order> Orders { get; set; }
     public DbSet<OrderItem> OrderItems { get; set; }
     public DbSet<Shipment> Shipments { get; set; }
@@ -37,13 +38,26 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
             entity.Property(e => e.Currency).IsRequired().HasMaxLength(3);
-            entity.Property(e => e.ImageUrl).HasMaxLength(500);
             entity.HasIndex(e => e.IsDeleted);
+            
+            entity.HasMany(e => e.DesignVariants)
+                .WithOne(e => e.Item)
+                .HasForeignKey(e => e.ItemId)
+                .OnDelete(DeleteBehavior.Cascade);
             
             entity.HasMany(e => e.OrderItems)
                 .WithOne(e => e.Item)
                 .HasForeignKey(e => e.ItemId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // DesignVariant configuration
+        modelBuilder.Entity<DesignVariant>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.ImageUrl).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.BlobName).HasMaxLength(500);
         });
 
         // Order configuration
