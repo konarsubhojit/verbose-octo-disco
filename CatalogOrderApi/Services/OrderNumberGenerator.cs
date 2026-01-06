@@ -23,24 +23,29 @@ public class OrderNumberGenerator : IOrderNumberGenerator
         await _semaphore.WaitAsync();
         try
         {
-            // Get the highest order number
-            var lastOrder = await _context.Orders
-                .OrderByDescending(o => o.Id)
+            var today = DateTime.UtcNow;
+            var datePrefix = today.ToString("yyyyMMdd");
+            
+            // Get the highest order number for today
+            var todayPrefix = $"ORD-{datePrefix}-";
+            var lastOrderToday = await _context.Orders
+                .Where(o => o.OrderNumber.StartsWith(todayPrefix))
+                .OrderByDescending(o => o.OrderNumber)
                 .FirstOrDefaultAsync();
 
             int nextNumber = 1;
-            if (lastOrder != null && !string.IsNullOrEmpty(lastOrder.OrderNumber))
+            if (lastOrderToday != null && !string.IsNullOrEmpty(lastOrderToday.OrderNumber))
             {
-                // Extract number from ODxxxx format
-                var numberPart = lastOrder.OrderNumber.Substring(2);
-                if (int.TryParse(numberPart, out int lastNumber))
+                // Extract number from ORD-YYYYMMDD-XXXX format
+                var parts = lastOrderToday.OrderNumber.Split('-');
+                if (parts.Length == 3 && int.TryParse(parts[2], out int lastNumber))
                 {
                     nextNumber = lastNumber + 1;
                 }
             }
 
-            // Format as ODxxxx (e.g., OD0001, OD0002, etc.)
-            return $"OD{nextNumber:D4}";
+            // Format as ORD-YYYYMMDD-XXXX (e.g., ORD-20260106-0001)
+            return $"ORD-{datePrefix}-{nextNumber:D4}";
         }
         finally
         {

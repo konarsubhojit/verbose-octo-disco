@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using StackExchange.Redis;
 using Azure.Storage.Blobs;
 using CatalogOrderApi.Data;
@@ -34,11 +37,39 @@ var blobConnectionString = builder.Configuration["BlobStorage:ConnectionString"]
     ?? "UseDevelopmentStorage=true";
 builder.Services.AddSingleton(x => new BlobServiceClient(blobConnectionString));
 
+// Configure JWT Authentication
+var jwtSecretKey = builder.Configuration["JwtSettings:SecretKey"] 
+    ?? "your-super-secret-key-min-32-characters-long-for-security";
+var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "CatalogOrderApi";
+var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "CatalogOrderApiClients";
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
+    };
+});
+
+builder.Services.AddAuthorization();
+
 // Register services
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddSingleton<IConcurrencyService>(new SemaphoreConcurrencyService(maxConcurrentRequests: 10));
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
 builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Add CORS
 builder.Services.AddCors(options =>
@@ -69,6 +100,7 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowAll");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
