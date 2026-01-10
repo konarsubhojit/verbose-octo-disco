@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using CatalogOrderApi.Models;
 
 namespace CatalogOrderApi.DTOs;
@@ -34,19 +35,36 @@ public class OrderItemDto
 
 public class CreateOrderDto
 {
+    [Required]
+    [StringLength(255, MinimumLength = 1)]
     public string CustomerName { get; set; } = string.Empty;
+    
+    [EmailAddress]
     public string CustomerEmail { get; set; } = string.Empty;
+    
+    [Phone]
     public string CustomerPhone { get; set; } = string.Empty;
+    
     public string CustomerAddress { get; set; } = string.Empty;
+    
+    [Required]
+    [RegularExpression("^(USD|EUR|GBP|INR)$", ErrorMessage = "Currency must be one of: USD, EUR, GBP, INR")]
     public string Currency { get; set; } = "USD";
+    
     public OrderSource Source { get; set; }
     public DateTime? DeliveryDate { get; set; }
+    
+    [Required]
+    [MinLength(1, ErrorMessage = "Order must contain at least one item")]
     public List<CreateOrderItemDto> Items { get; set; } = new();
 }
 
 public class CreateOrderItemDto
 {
+    [Range(1, int.MaxValue, ErrorMessage = "ItemId must be greater than 0")]
     public int ItemId { get; set; }
+    
+    [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1")]
     public int Quantity { get; set; }
 }
 

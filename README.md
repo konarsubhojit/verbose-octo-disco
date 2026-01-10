@@ -38,7 +38,7 @@ dotnet ef database update
 dotnet run
 ```
 
-The API will be available at `http://localhost:5000` with Swagger UI at the root.
+The API will be available at `http://localhost:5233` with Swagger UI at the root.
 
 ## Documentation
 

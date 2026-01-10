@@ -34,8 +34,9 @@ public class BlobStorageService : IBlobStorageService
             var containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
             await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
 
-            // Generate unique blob name
-            var blobName = $"{Guid.NewGuid()}_{fileName}";
+            // Generate unique blob name with original file extension
+            var fileExtension = Path.GetExtension(fileName);
+            var blobName = $"{Guid.NewGuid()}{fileExtension}";
             var blobClient = containerClient.GetBlobClient(blobName);
 
             var blobHttpHeaders = new BlobHttpHeaders

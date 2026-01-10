@@ -88,12 +88,33 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Add CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+        ?? new[] { "http://localhost:3000", "http://localhost:5173" }; // Default for dev
+    
+    options.AddPolicy("AllowConfiguredOrigins",
         policy =>
         {
-            policy.AllowAnyOrigin()
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
+            if (allowedOrigins.Contains("*"))
+            {
+                // Only allow * in development
+                if (builder.Environment.IsDevelopment())
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                }
+                else
+                {
+                    throw new InvalidOperationException("Wildcard CORS origin (*) is not allowed in production. Configure specific origins in appsettings.json");
+                }
+            }
+            else
+            {
+                policy.WithOrigins(allowedOrigins)
+                      .AllowAnyMethod()
+                      .AllowAnyHeader()
+                      .AllowCredentials();
+            }
         });
 });
 
@@ -112,7 +133,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseCors("AllowAll");
+app.UseCors("AllowConfiguredOrigins");
 
 app.UseAuthentication();
 app.UseAuthorization();

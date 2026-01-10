@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CatalogOrderApi.Data;
@@ -33,8 +34,8 @@ public class ItemsController : ControllerBase
     // GET: api/items?page=1&pageSize=20&includeDeleted=false
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ItemDto>>> GetItems(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery][Range(1, int.MaxValue)] int page = 1,
+        [FromQuery][Range(1, 100)] int pageSize = 20,
         [FromQuery] bool includeDeleted = false)
     {
         _logger.LogInformation("Fetching items - Page: {Page}, PageSize: {PageSize}", page, pageSize);
@@ -119,14 +120,22 @@ public class ItemsController : ControllerBase
 
     // POST: api/items/5/variants (with image upload)
     [HttpPost("{itemId}/variants")]
+    [RequestSizeLimit(5 * 1024 * 1024)] // 5 MB limit
     public async Task<ActionResult<DesignVariantDto>> AddDesignVariant(
         int itemId,
         [FromForm] string name,
         [FromForm] IFormFile image)
     {
+        const long MaxFileSize = 5 * 1024 * 1024; // 5 MB
+        
         if (image == null || image.Length == 0)
         {
             return BadRequest("Image file is required");
+        }
+
+        if (image.Length > MaxFileSize)
+        {
+            return BadRequest($"File size exceeds maximum allowed size of {MaxFileSize / (1024 * 1024)} MB");
         }
 
         var allowedTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp" };

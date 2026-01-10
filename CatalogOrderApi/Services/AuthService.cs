@@ -83,7 +83,12 @@ public class AuthService : IAuthService
             ?? throw new InvalidOperationException("JWT SecretKey not configured");
         var issuer = _configuration["JwtSettings:Issuer"] ?? "CatalogOrderApi";
         var audience = _configuration["JwtSettings:Audience"] ?? "CatalogOrderApiClients";
-        var expirationMinutes = int.Parse(_configuration["JwtSettings:ExpirationMinutes"] ?? "1440");
+        
+        var expirationMinutesConfig = _configuration["JwtSettings:ExpirationMinutes"];
+        if (!int.TryParse(expirationMinutesConfig, out var expirationMinutes))
+        {
+            expirationMinutes = 1440; // Default to 24 hours
+        }
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);

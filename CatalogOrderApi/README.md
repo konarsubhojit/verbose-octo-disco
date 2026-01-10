@@ -180,9 +180,9 @@ dotnet run
 ```
 
 The API will be available at:
-- HTTP: `http://localhost:5000`
-- HTTPS: `https://localhost:5001`
-- Swagger UI: `http://localhost:5000` (root)
+- HTTP: `http://localhost:5233`
+- HTTPS: `https://localhost:7071`
+- Swagger UI: `http://localhost:5233` (root)
 
 ## API Endpoints
 
@@ -352,10 +352,12 @@ Prices are stored as **minor units** (e.g., cents for USD) to avoid floating-poi
 
 Order numbers are auto-generated in the format: **ORD-YYYYMMDD-XXXX**
 
+The `YYYYMMDD` segment represents the order's creation date in UTC, and the numeric sequence (`XXXX`) resets each day.
+
 Examples:
-- `ORD-20260106-0001`
-- `ORD-20260106-0002`
-- `ORD-20260107-0001`
+- `ORD-20240115-0001`
+- `ORD-20240115-0002`
+- `ORD-20240116-0001`
 
 The sequence resets daily.
 
@@ -379,10 +381,48 @@ The API uses **Microsoft.Extensions.Caching.Hybrid** with version-based cache in
 
 ## Security
 
+### Authentication & Authorization
 - **Authentication**: Required for all endpoints except `/api/health` and `/api/auth/**`
 - **Authorization**: JWT Bearer tokens
-- **CORS**: Configured for cross-origin requests
+- **Google OAuth**: Used for user authentication
 - **Passwords**: Not stored (Google OAuth only)
+
+### Important Security Configurations
+
+⚠️ **Before deploying to production, you MUST update these settings:**
+
+1. **JWT Secret Key** (`appsettings.json`):
+   - Change `JwtSettings:SecretKey` to a strong random value (minimum 32 characters)
+   - Use a cryptographically secure random generator
+   - Store in environment variables or Azure Key Vault, not in appsettings.json
+
+2. **Database Password** (`appsettings.json`):
+   - Change the PostgreSQL password from the default "postgres"
+   - Use a strong, unique password
+   - Store in environment variables or secure configuration
+
+3. **CORS Origins** (`appsettings.json`):
+   - Replace the wildcard `*` with specific allowed origins
+   - Example: `["https://yourdomain.com", "https://app.yourdomain.com"]`
+   - Wildcard is only allowed in development mode
+
+4. **Google OAuth Client ID**:
+   - Configure your actual Google OAuth Client ID
+   - Restrict to authorized domains in Google Cloud Console
+
+5. **Azure Blob Storage**:
+   - Configure production Azure Blob Storage connection string
+   - Do not use `UseDevelopmentStorage=true` in production
+
+### Validation
+- Input validation on all DTOs with data annotations
+- File size limits on image uploads (5 MB max)
+- Currency validation (only USD, EUR, GBP, INR allowed)
+- Price validation (non-negative values only)
+- Pagination limits (max 100 items per page)
+
+### Rate Limiting
+Consider implementing rate limiting middleware for production deployments to prevent abuse.
 
 ## Development
 
@@ -453,7 +493,7 @@ Logs are written to:
 ### Health Checks
 
 ```bash
-curl http://localhost:5000/api/health
+curl http://localhost:5233/api/health
 ```
 
 ## Troubleshooting

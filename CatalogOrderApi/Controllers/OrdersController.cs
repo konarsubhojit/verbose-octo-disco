@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -35,8 +36,8 @@ public class OrdersController : ControllerBase
     // GET: api/orders?page=1&pageSize=20&status=&source=&customerName=
     [HttpGet]
     public async Task<ActionResult<IEnumerable<OrderDto>>> GetOrders(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery][Range(1, int.MaxValue)] int page = 1,
+        [FromQuery][Range(1, 100)] int pageSize = 20,
         [FromQuery] OrderStatus? status = null,
         [FromQuery] OrderSource? source = null,
         [FromQuery] string? customerName = null,
@@ -124,6 +125,7 @@ public class OrdersController : ControllerBase
         // Calculate order total
         long orderTotal = 0;
         var orderItems = new List<OrderItem>();
+        var orderCurrency = createOrderDto.Currency;
 
         foreach (var itemDto in createOrderDto.Items)
         {
@@ -136,6 +138,12 @@ public class OrdersController : ControllerBase
             if (item.IsDeleted)
             {
                 return BadRequest($"Item with ID {itemDto.ItemId} is deleted");
+            }
+
+            // Validate currency consistency
+            if (item.Currency != orderCurrency)
+            {
+                return BadRequest($"Item with ID {itemDto.ItemId} has currency {item.Currency} but order currency is {orderCurrency}. All items must have the same currency.");
             }
 
             var lineTotal = item.Price * itemDto.Quantity;

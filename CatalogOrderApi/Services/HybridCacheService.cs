@@ -15,8 +15,10 @@ public class HybridCacheService : ICacheService
 {
     private readonly HybridCache _cache;
     private readonly ILogger<HybridCacheService> _logger;
-    private static readonly ConcurrentDictionary<string, int> _versions = new();
-    private static readonly ConcurrentDictionary<string, HashSet<string>> _taggedKeys = new();
+    private readonly ConcurrentDictionary<string, int> _versions = new();
+    private readonly ConcurrentDictionary<string, HashSet<string>> _taggedKeys = new();
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(1);
+    private DateTime _lastCleanup = DateTime.UtcNow;
 
     public HybridCacheService(HybridCache cache, ILogger<HybridCacheService> logger)
     {
@@ -29,11 +31,15 @@ public class HybridCacheService : ICacheService
         try
         {
             var versionedKey = GetVersionedKey(key);
-            return await _cache.GetOrCreateAsync<T>(
+            
+            // Try to get cached value, return default if not found
+            var result = await _cache.GetOrCreateAsync<T?>(
                 versionedKey,
-                async cancel => default!,
+                async cancel => default,
                 cancellationToken: CancellationToken.None
             );
+            
+            return result;
         }
         catch (Exception ex)
         {
@@ -57,6 +63,9 @@ public class HybridCacheService : ICacheService
             
             // Track the key for pattern-based invalidation
             TrackKey(key);
+            
+            // Periodic cleanup
+            PerformCleanupIfNeeded();
         }
         catch (Exception ex)
         {
@@ -72,6 +81,9 @@ public class HybridCacheService : ICacheService
             IncrementVersion(key);
             await _cache.RemoveAsync(GetVersionedKey(key), CancellationToken.None);
             
+            // Remove from tracking
+            RemoveFromTracking(key);
+            
             _logger.LogInformation("Invalidated cache key: {Key}", key);
         }
         catch (Exception ex)
@@ -84,14 +96,16 @@ public class HybridCacheService : ICacheService
     {
         try
         {
+            var patternWithoutWildcard = pattern.Replace("*", "");
             var keysToRemove = _taggedKeys.Keys
-                .Where(k => k.Contains(pattern.Replace("*", "")))
+                .Where(k => k.StartsWith(patternWithoutWildcard, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             foreach (var key in keysToRemove)
             {
                 IncrementVersion(key);
                 await _cache.RemoveAsync(GetVersionedKey(key), CancellationToken.None);
+                RemoveFromTracking(key);
             }
 
             _logger.LogInformation("Invalidated {Count} cache keys matching pattern: {Pattern}", keysToRemove.Count, pattern);
@@ -125,9 +139,50 @@ public class HybridCacheService : ICacheService
                 new HashSet<string> { key },
                 (t, set) =>
                 {
-                    set.Add(key);
+                    lock (set)
+                    {
+                        set.Add(key);
+                    }
                     return set;
                 });
+        }
+    }
+
+    private void RemoveFromTracking(string key)
+    {
+        var parts = key.Split(':');
+        if (parts.Length > 0)
+        {
+            var tag = parts[0];
+            if (_taggedKeys.TryGetValue(tag, out var keys))
+            {
+                lock (keys)
+                {
+                    keys.Remove(key);
+                    if (keys.Count == 0)
+                    {
+                        _taggedKeys.TryRemove(tag, out _);
+                    }
+                }
+            }
+        }
+    }
+
+    private void PerformCleanupIfNeeded()
+    {
+        if (DateTime.UtcNow - _lastCleanup > CleanupInterval)
+        {
+            _lastCleanup = DateTime.UtcNow;
+            // Cleanup old versions that are no longer needed
+            var keysToClean = _versions.Where(kvp => kvp.Value > 5).Select(kvp => kvp.Key).ToList();
+            foreach (var key in keysToClean)
+            {
+                if (_versions.TryGetValue(key, out var version) && version > 5)
+                {
+                    _versions.TryUpdate(key, 0, version); // Reset to 0
+                }
+            }
+            _logger.LogInformation("Performed cache cleanup, reset {Count} version counters", keysToClean.Count);
         }
     }
 }
