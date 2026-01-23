@@ -50,17 +50,20 @@ services:
       - "5233:8080"
       - "7233:8081"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=catalogorderdb;Username=postgres;Password=postgres
+      - ASPIRE_ENABLE_HEALTH_ENDPOINTS=true
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=catalogorderdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       - ConnectionStrings__Redis=redis:6379
-      - BlobStorage__ConnectionString=UseDevelopmentStorage=true
-      - JwtSettings__SecretKey=your-super-secret-key-min-32-characters-long-for-security
-      - JwtSettings__Issuer=CatalogOrderApi
-      - JwtSettings__Audience=CatalogOrderApiClients
-      - JwtSettings__ExpirationMinutes=1440
-      - GoogleAuth__ClientId=your-google-client-id.apps.googleusercontent.com
-      - Cors__AllowedOrigins__0=*
+      - BlobStorage__ConnectionString=${AZURE_STORAGE_CONNECTION_STRING:-UseDevelopmentStorage=true}
+      # ⚠️ SECURITY: Use environment variables or Docker secrets for production
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY:-your-super-secret-key-min-32-characters-long-for-security}
+      - JwtSettings__Issuer=${JWT_ISSUER:-CatalogOrderApi}
+      - JwtSettings__Audience=${JWT_AUDIENCE:-CatalogOrderApiClients}
+      - JwtSettings__ExpirationMinutes=${JWT_EXPIRATION_MINUTES:-1440}
+      - GoogleAuth__ClientId=${GOOGLE_CLIENT_ID:-your-google-client-id.apps.googleusercontent.com}
+      # ⚠️ SECURITY: Replace * with specific origins in production  
+      - Cors__AllowedOrigins__0=${CORS_ALLOWED_ORIGIN:-*}
     depends_on:
       postgres:
         condition: service_healthy
