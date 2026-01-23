@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: catalogorder-postgres
+    environment:
+      POSTGRES_DB: catalogorderdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - catalogorder-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: catalogorder-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - catalogorder-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # .NET Web API
+  # Note: Due to Docker build environment SSL certificate issues in GitHub Actions,
+  # the API container build might fail. Use .NET Aspire (see README) as the 
+  # recommended approach for local development and deployment.
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: catalogorder-api
+    ports:
+      - "5233:8080"
+      - "7233:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=catalogorderdb;Username=postgres;Password=postgres
+      - ConnectionStrings__Redis=redis:6379
+      - BlobStorage__ConnectionString=UseDevelopmentStorage=true
+      - JwtSettings__SecretKey=your-super-secret-key-min-32-characters-long-for-security
+      - JwtSettings__Issuer=CatalogOrderApi
+      - JwtSettings__Audience=CatalogOrderApiClients
+      - JwtSettings__ExpirationMinutes=1440
+      - GoogleAuth__ClientId=your-google-client-id.apps.googleusercontent.com
+      - Cors__AllowedOrigins__0=*
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - catalogorder-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  catalogorder-network:
+    driver: bridge
