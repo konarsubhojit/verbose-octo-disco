@@ -9,6 +9,9 @@ using CatalogOrderApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add service defaults & Aspire client integrations
+builder.AddServiceDefaults();
+
 // Add services to the container.
 builder.Services.AddControllers();
 
@@ -138,6 +141,7 @@ app.UseCors("AllowConfiguredOrigins");
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapDefaultEndpoints();
 app.MapControllers();
 
 app.Run();

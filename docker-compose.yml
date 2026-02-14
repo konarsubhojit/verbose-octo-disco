@@ -1,0 +1,96 @@
+version: '3.8'
+
+# ⚠️ SECURITY NOTICE FOR PRODUCTION DEPLOYMENT:
+# 1. Copy .env.example to .env and update all sensitive values
+# 2. Change default PostgreSQL password
+# 3. Set a strong JWT secret key (min 32 characters)
+# 4. Configure your Google OAuth Client ID
+# 5. Set specific CORS origins (not wildcard *)
+# 6. Use HTTPS with valid certificates
+# 7. Never commit .env file to version control
+# 
+# For development: default values are sufficient
+# For production: ALL defaults MUST be changed
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: catalogorder-postgres
+    environment:
+      POSTGRES_DB: catalogorderdb
+      POSTGRES_USER: postgres
+      # ⚠️ SECURITY WARNING: Change this password for production!
+      # Set POSTGRES_PASSWORD environment variable or use Docker secrets
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - catalogorder-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: catalogorder-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - catalogorder-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # .NET Web API
+  # Note: Due to Docker build environment SSL certificate issues in GitHub Actions,
+  # the API container build might fail. Use .NET Aspire (see README) as the 
+  # recommended approach for local development and deployment.
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: catalogorder-api
+    ports:
+      - "5233:8080"
+      - "7233:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPIRE_ENABLE_HEALTH_ENDPOINTS=true
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=catalogorderdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      - ConnectionStrings__Redis=redis:6379
+      - BlobStorage__ConnectionString=${AZURE_STORAGE_CONNECTION_STRING:-UseDevelopmentStorage=true}
+      # ⚠️ SECURITY: Use environment variables or Docker secrets for production
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY:-your-super-secret-key-min-32-characters-long-for-security}
+      - JwtSettings__Issuer=${JWT_ISSUER:-CatalogOrderApi}
+      - JwtSettings__Audience=${JWT_AUDIENCE:-CatalogOrderApiClients}
+      - JwtSettings__ExpirationMinutes=${JWT_EXPIRATION_MINUTES:-1440}
+      - GoogleAuth__ClientId=${GOOGLE_CLIENT_ID:-your-google-client-id.apps.googleusercontent.com}
+      # ⚠️ SECURITY: Replace * with specific origins in production  
+      - Cors__AllowedOrigins__0=${CORS_ALLOWED_ORIGIN:-*}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - catalogorder-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  catalogorder-network:
+    driver: bridge
